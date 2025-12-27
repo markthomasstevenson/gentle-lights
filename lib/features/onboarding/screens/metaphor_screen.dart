@@ -57,6 +57,16 @@ class MetaphorScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 18),
                 ),
               ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  context.go('/caregiver/join');
+                },
+                child: const Text(
+                  'I am the family helper',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
               const SizedBox(height: 24),
             ],
           ),

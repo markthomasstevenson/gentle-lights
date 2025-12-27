@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../auth/auth_service.dart';
@@ -104,6 +105,26 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
                           color: Theme.of(context).colorScheme.primary,
                         ),
                         textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: _recoveryCode!));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Recovery code copied to clipboard'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy),
+                        label: const Text('Copy'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
                       ),
                     ],
                   ),

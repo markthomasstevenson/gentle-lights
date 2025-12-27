@@ -119,6 +119,51 @@ class _CaregiverJoinScreenState extends State<CaregiverJoinScreen> {
                 textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 24),
+              // QR Code scan placeholder
+              Container(
+                width: double.infinity,
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.qr_code_scanner,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Scan QR Code',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '(Optional)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'or',
+                style: TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
               TextField(
                 controller: _pairingCodeController,
                 decoration: const InputDecoration(
