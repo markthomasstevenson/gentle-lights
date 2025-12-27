@@ -1,35 +1,51 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../../auth/auth_service.dart';
+import 'welcome_screen.dart';
 
-class OnboardingScreen extends StatelessWidget {
+/// Onboarding screen that handles initial auth and routes to welcome
+class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends State<OnboardingScreen> {
+  bool _isInitializing = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeAuth();
+  }
+
+  Future<void> _initializeAuth() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    
+    // Sign in anonymously if not already signed in
+    if (!authService.isAuthenticated) {
+      await authService.signInAnonymously();
+    }
+
+    if (mounted) {
+      setState(() {
+        _isInitializing = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Welcome'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Welcome to Gentle Lights',
-              style: TextStyle(fontSize: 24),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () {
-                // TODO: Navigate through onboarding flow
-                context.go('/user-house');
-              },
-              child: const Text('Continue'),
-            ),
-          ],
+    if (_isInitializing) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
         ),
-      ),
-    );
+      );
+    }
+
+    return const WelcomeScreen();
   }
 }
 

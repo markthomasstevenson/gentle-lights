@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"qiiq-gentle-lights","appId":"1:564430644230:android:19d458dadadb72d75f0f87","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"qiiq-gentle-lights","configurations":{"android":"1:564430644230:android:19d458dadadb72d75f0f87","ios":"1:564430644230:ios:4a8ff1d86ab661385f0f87"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "qiiq-gentle-lights",
+          "appId": "1:564430644230:android:19d458dadadb72d75f0f87",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "qiiq-gentle-lights",
+          "configurations": {
+            "android": "1:564430644230:android:19d458dadadb72d75f0f87",
+            "ios": "1:564430644230:ios:4a8ff1d86ab661385f0f87"
+          }
+        }
+      }
+    }
+  }
+}
