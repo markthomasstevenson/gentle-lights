@@ -8,6 +8,7 @@ import '../../../../domain/models/day.dart';
 import '../../../../domain/models/time_window.dart';
 import '../../../../services/time_window_service.dart';
 import '../../../../services/notification_service.dart';
+import '../widgets/house_view.dart';
 
 class UserHouseScreen extends StatefulWidget {
   const UserHouseScreen({super.key});
@@ -147,8 +148,16 @@ class _UserHouseScreenState extends State<UserHouseScreen> {
           }
 
           final activeWindowData = day.windows[activeWindow];
-          final isLit = activeWindowData?.state == WindowState.completedSelf ||
-              activeWindowData?.state == WindowState.completedVerified;
+          final windowState = activeWindowData?.state;
+
+          // Determine house state from current window and completion status
+          final houseState = determineHouseState(
+            currentWindow: activeWindow,
+            windowState: windowState,
+          );
+
+          final isCompleted = windowState == WindowState.completedSelf ||
+              windowState == WindowState.completedVerified;
 
           // Update notifications based on window state
           // This ensures notifications are scheduled when windows become active
@@ -163,51 +172,16 @@ class _UserHouseScreenState extends State<UserHouseScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // TODO: Add house animation here (glow, curtains, etc.)
                   Card(
                     elevation: 4,
-                    child: Container(
-                      width: 200,
-                      height: 200,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: isLit
-                            ? Theme.of(context).colorScheme.primaryContainer
-                            : Theme.of(context).colorScheme.surfaceContainerHighest,
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            isLit ? Icons.lightbulb : Icons.lightbulb_outline,
-                            size: 64,
-                            color: isLit
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            isLit ? 'House: LIT' : 'House: DIM',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: isLit
-                                  ? Theme.of(context).colorScheme.onPrimaryContainer
-                                  : Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    child: HouseView(state: houseState),
                   ),
                   const SizedBox(height: 48),
-                  // TODO: Add notification scheduling here
                   SizedBox(
                     width: double.infinity,
                     height: 64,
                     child: ElevatedButton(
-                      onPressed: isLit ? null : _handleTurnLightsOn,
+                      onPressed: isCompleted ? null : _handleTurnLightsOn,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Theme.of(context).colorScheme.onPrimary,
