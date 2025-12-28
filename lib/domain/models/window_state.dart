@@ -3,6 +3,7 @@ enum WindowState {
   completedSelf,
   completedVerified,
   missed,
+  notRequired,
 }
 
 

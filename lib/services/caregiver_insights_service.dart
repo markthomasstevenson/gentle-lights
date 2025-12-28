@@ -105,6 +105,11 @@ class CaregiverInsightsService {
     DateTime dayDate,
     DateTime currentTime,
   ) {
+    // Not required windows are never missed
+    if (state == WindowState.notRequired) {
+      return false;
+    }
+
     // Explicitly marked as missed
     if (state == WindowState.missed) {
       return true;

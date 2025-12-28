@@ -1,81 +1,105 @@
-# Consistent Color System Implementation
+# Support for Optional Time Windows
 
 ## Overview
-This PR implements a comprehensive, consistent color system for the Gentle Lights app based on the app icon palette. All colors are now centralized in `AppColors` and applied consistently across the entire application.
+Extends Gentle Lights to support users who do NOT take medication in every time window. This allows per-user configuration of which windows are required, with non-required windows never nagging, never showing as missed, and remaining visually calm.
 
 ## Changes
 
-### Core Color System
-- **Created `AppColors` class** (`lib/app/theme/app_colors.dart`)
-  - Defined all 8 core colors from the app icon palette
-  - Added semantic color mappings for Material 3 color scheme
-  - Included comprehensive documentation explaining color usage rules
-  - Enforced `warmWindowGlow` usage restrictions (primary actions, lights on, positive feedback only)
+### Domain Changes
 
-### Theme Updates
-- **Updated `AppTheme`** (`lib/app/theme/app_theme.dart`)
-  - Replaced generic orange seed color with AppColors palette
-  - Configured light theme with warm, non-medical color scheme
-  - Configured dark theme using night/dim colors (nightSkyBlue, twilightLavender)
-  - Applied colors consistently to all Material 3 components:
-    - AppBar, Cards, Buttons, Input fields, Snackbars
-  - Removed deprecated ColorScheme properties (surfaceVariant, background)
-  - Fixed CardTheme to use CardThemeData
+1. **New WindowState: `notRequired`**
+   - Added to `WindowState` enum
+   - Represents windows that are not required for a user
+   - These windows never become active, missed, or trigger notifications
 
-### Screen Updates
-- **Caregiver Timeline Screen** (`lib/features/caregiver/screens/caregiver_timeline_screen.dart`)
-  - Replaced hardcoded Colors (orange, blue, green, red) with AppColors
-  - State colors now use: softCandleOrange (pending), twilightLavender (completed), warmWindowGlow (verified), softSageGreen (missed)
-  - No red/green medical colors per design requirements
+2. **New Profile Model**
+   - Created `Profile` model stored at `families/{familyId}/profiles/{uid}`
+   - Contains:
+     - `role`: UserRole (user/caregiver)
+     - `requiredWindows`: Set<TimeWindow> - which windows are required
+     - `timeZone`: String (store-ready, defaults to UTC for now)
+   - Default profile includes all windows as required (backward compatible)
 
-- **House View Widget** (`lib/features/user_house/widgets/house_view.dart`)
-  - Replaced Colors.black with AppColors.textPrimary for shadows
-  - Updated house state colors:
-    - DIM: nightSkyBlue tones (unresolved, waiting)
-    - WARM: warmWindowGlow (lights on, completed)
-    - NIGHT: twilightLavender tones (bedtime completed)
+### Repository Changes
 
-- **All Onboarding Screens**
-  - Already using theme colors, which now map to AppColors
-  - Error states use softSageGreen (no red) through theme
+1. **ProfileRepository**
+   - New repository for managing user profiles
+   - Methods:
+     - `getProfile()` / `getProfileStream()` - fetch user profile
+     - `saveProfile()` - save/update profile
+     - `updateRequiredWindows()` - update required windows config
+     - `createDefaultProfile()` - create default profile
 
-- **User House Screen**
-  - Already using theme colors correctly
-  - Primary button automatically uses warmWindowGlow through theme
+2. **WindowRepository Updates**
+   - `getDay()` and `getDayStream()` now accept optional `requiredWindows` parameter
+   - `completeWindow()` accepts optional `requiredWindows` parameter
+   - New `ensureDayInitialized()` method that:
+     - Creates day document with proper window initialization
+     - Handles mid-day `requiredWindows` changes:
+       - Newly required windows: set to `pending` (unless already completed)
+       - Newly not-required windows: set to `notRequired` (unless already completed)
+       - Completed windows are always preserved
+   - Prevents completing `notRequired` windows
 
-## Color Palette
+### State Machine Updates
 
-### Core Colors
-- `nightSkyBlue` (#3E4C7A) - Night/dim states
-- `twilightLavender` (#7A6FB0) - Night/dim accents
-- `warmWindowGlow` (#FFC857) - **PRIMARY ACTION ONLY** (buttons, lights on, positive feedback)
-- `softCandleOrange` (#F6A85F) - Warm accents
-- `warmOffWhite` (#FAF8F4) - Default backgrounds
-- `softSageGreen` (#8FB6A6) - Subtle accents, neutral states
-- `textPrimary` (#2E2E2E) - Main text
-- `textSecondary` (#6F6F6F) - Secondary text
+1. **TimeWindowService**
+   - `notRequired` windows are never active, missed, or completable
+   - Only required windows can transition to missed state
 
-### Design Rules Enforced
-- ✅ No red or green success/error colors
-- ✅ warmWindowGlow restricted to primary actions, lights on, positive feedback
-- ✅ Backgrounds default to warmOffWhite
-- ✅ Night/dim states use nightSkyBlue and lavender tones
-- ✅ All hardcoded colors replaced with AppColors references
+2. **CaregiverInsightsService**
+   - `notRequired` windows are never counted as missed
+   - Only required windows contribute to missed window statistics
 
-## Testing
-- ✅ Flutter analyze passes with no errors
-- ✅ Debug build completes successfully
-- ✅ All screens use consistent color system
-- ✅ No deprecated API usage
+3. **NotificationService**
+   - `notRequired` windows never trigger notifications
+   - Early return for `notRequired` state to prevent any notification scheduling
 
-## Files Changed
-- `lib/app/theme/app_colors.dart` (new)
-- `lib/app/theme/app_theme.dart` (updated)
-- `lib/features/caregiver/screens/caregiver_timeline_screen.dart` (updated)
-- `lib/features/user_house/widgets/house_view.dart` (updated)
+### UI Updates
 
-## Notes
-- All color usage is now centralized and consistent
-- Theme automatically applies colors to Material components
-- Future color additions should go through AppColors class
-- If a color seems missing, leave a TODO instead of adding new colors
+1. **CaregiverTimelineScreen**
+   - Added `notRequired` case to `_getStateDisplayName()` switch
+   - Added `notRequired` case to `_getStateColor()` switch
+   - Uses subtle, calm color (softSageGreen with low opacity) for not-required state
+
+### Testing
+
+Added unit tests in `test/data/repositories/window_repository_required_windows_test.dart`:
+- User with only midday/evening required
+- User with only morning required
+- All windows required (default)
+- State machine rules for notRequired windows
+- Conceptual tests for requiredWindows change mid-day logic
+
+## Firestore Schema
+
+New collection structure:
+```
+families/{familyId}/profiles/{uid}
+{
+  role: "user" | "caregiver",
+  requiredWindows: ["midday", "evening"],  // Array of TimeWindow names
+  timeZone: "Europe/London"
+}
+```
+
+## Backward Compatibility
+
+- Default behavior: all windows are required (existing behavior preserved)
+- Existing day documents continue to work
+- Profile documents are optional - if missing, defaults are used
+- All existing code paths remain functional
+
+## Implementation Notes
+
+- Window initialization happens lazily when day documents are accessed
+- `ensureDayInitialized()` should be called when profile changes to sync window states
+- Completed windows are always preserved, even if `requiredWindows` changes
+- `notRequired` windows cannot be completed (throws exception if attempted)
+
+## Next Steps (Not in this PR)
+
+- UI for configuring requiredWindows (settings screen)
+- Automatic day initialization on app start
+- Profile creation during onboarding
+- Custom window times (structure is ready in Profile model)

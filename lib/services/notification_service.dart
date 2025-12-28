@@ -1,6 +1,8 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import 'dart:io' show Platform;
+import 'package:flutter/services.dart';
 import '../domain/models/time_window.dart';
 import '../domain/models/window_state.dart';
 import '../app/router/app_router.dart';
@@ -100,6 +102,10 @@ class NotificationService {
           if (notificationsEnabled != true) {
             print('NotificationService: WARNING - Notifications are not enabled! User needs to grant permission in settings.');
           }
+          
+          // Request exact alarm permission for Android 12+ (API 31+)
+          // This is required for exact alarms to work when the app is closed
+          await _requestExactAlarmPermission();
         }
 
         _initialized = true;
@@ -110,6 +116,33 @@ class NotificationService {
     } catch (e) {
       // TODO: Log error properly
       return false;
+    }
+  }
+
+  /// Request exact alarm permission for Android 12+ (API 31+)
+  /// 
+  /// This permission is required for scheduled notifications to work when the app is closed.
+  Future<void> _requestExactAlarmPermission() async {
+    if (!Platform.isAndroid) return;
+    
+    try {
+      const platform = MethodChannel('com.gentlelights.app/permissions');
+      final bool? hasPermission = await platform.invokeMethod('canScheduleExactAlarms');
+      
+      if (hasPermission != true) {
+        print('NotificationService: Requesting exact alarm permission');
+        final bool? granted = await platform.invokeMethod('requestExactAlarmPermission');
+        print('NotificationService: Exact alarm permission granted: $granted');
+        
+        if (granted != true) {
+          print('NotificationService: WARNING - Exact alarm permission denied. Notifications may not work when app is closed.');
+        }
+      } else {
+        print('NotificationService: Exact alarm permission already granted');
+      }
+    } catch (e) {
+      // Permission might not be available on older Android versions, that's OK
+      print('NotificationService: Could not check/request exact alarm permission: $e');
     }
   }
 
@@ -138,6 +171,12 @@ class NotificationService {
   }) async {
     if (!_initialized) {
       await initialize();
+    }
+
+    // Ensure exact alarm permission is granted before scheduling
+    // This is especially important on Android 12+ for notifications when app is closed
+    if (Platform.isAndroid) {
+      await _requestExactAlarmPermission();
     }
 
     final interval = repeatInterval ?? defaultRepeatInterval;
@@ -273,7 +312,7 @@ class NotificationService {
         ),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time,
+        // Removed matchDateTimeComponents - we're scheduling specific times, not recurring patterns
       );
 
       nextNotificationTime = nextNotificationTime.add(interval);
@@ -375,6 +414,12 @@ class NotificationService {
     
     if (isCompleted) {
       // Window is completed - cancel all notifications
+      await cancelWindowNotification(window);
+      return;
+    }
+
+    // Not required windows should never trigger notifications
+    if (state == WindowState.notRequired) {
       await cancelWindowNotification(window);
       return;
     }

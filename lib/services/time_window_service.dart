@@ -229,6 +229,20 @@ class TimeWindowService {
     WindowState state,
     DateTime currentTime,
   ) {
+    // If not required, it's never active, missed, or completable
+    if (state == WindowState.notRequired) {
+      return WindowInfo(
+        window: window,
+        startTime: startTime,
+        endTime: endTime,
+        gracePeriodEnd: gracePeriodEnd,
+        state: state,
+        isActive: false,
+        isMissed: false,
+        canComplete: false, // Not required windows cannot be completed
+      );
+    }
+
     // If already completed, it's not active or missed
     final isCompleted = state == WindowState.completedSelf || 
                         state == WindowState.completedVerified;
@@ -253,6 +267,7 @@ class TimeWindowService {
 
     // Determine if window is missed
     // Missed if grace period has passed and not completed
+    // Only required windows can be missed (notRequired windows are handled above)
     final isMissed = currentTime.isAfter(gracePeriodEnd);
 
     // Can complete if:

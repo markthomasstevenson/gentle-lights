@@ -105,6 +105,8 @@ class _CaregiverTimelineScreenState extends State<CaregiverTimelineScreen> {
         return 'Verified';
       case WindowState.missed:
         return 'Missed';
+      case WindowState.notRequired:
+        return 'Not Required';
     }
   }
 
@@ -125,6 +127,10 @@ class _CaregiverTimelineScreenState extends State<CaregiverTimelineScreen> {
       case WindowState.missed:
         // Missed uses soft sage green (neutral, not red)
         return AppColors.softSageGreen;
+      case WindowState.notRequired:
+        // Not required uses a very subtle, calm color (e.g., light gray)
+        // This should be visually calm and not draw attention
+        return AppColors.softSageGreen.withValues(alpha: 0.3);
     }
   }
 
