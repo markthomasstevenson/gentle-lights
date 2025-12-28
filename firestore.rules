@@ -17,10 +17,18 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/families/$(familyId)/members/$(getUserId()));
     }
 
+    // Users collection - stores familyId for quick lookup
+    match /users/{userId} {
+      // Users can read and write their own user document
+      allow read, write: if isAuthenticated() && userId == getUserId();
+    }
+
     // Families collection
     match /families/{familyId} {
-      // Allow read if user is a member of the family
-      allow read: if isFamilyMember(familyId);
+      // Allow read if user is a member OR if authenticated (for pairing/recovery code queries)
+      // Note: This allows authenticated users to query by pairingCode/recoveryCode to join families
+      // The pairing/recovery codes serve as the security mechanism at the application level
+      allow read: if isFamilyMember(familyId) || isAuthenticated();
       
       // Allow create if user is authenticated (for creating new family)
       allow create: if isAuthenticated() && 

@@ -1,130 +1,81 @@
-# MVP Functional Loop Implementation
+# Consistent Color System Implementation
 
 ## Overview
-This PR implements the MVP functional loop for the Gentle Lights app, enabling users to mark time windows as completed and caregivers to verify completions. The implementation includes the data model, services, repositories, and UI screens with reactive Firestore streams.
+This PR implements a comprehensive, consistent color system for the Gentle Lights app based on the app icon palette. All colors are now centralized in `AppColors` and applied consistently across the entire application.
 
-## Features Implemented
+## Changes
 
-### 1. Data Model
-- ✅ Created `Day` model for Firestore structure: `families/{familyId}/days/{yyyy-mm-dd}`
-- ✅ Each day document contains windows (morning, midday, evening, bedtime)
-- ✅ Each window contains: `state`, `completedAt`, `completedByUid`
-- ✅ Window states: `pending`, `completedSelf`, `completedVerified`, `missed`
+### Core Color System
+- **Created `AppColors` class** (`lib/app/theme/app_colors.dart`)
+  - Defined all 8 core colors from the app icon palette
+  - Added semantic color mappings for Material 3 color scheme
+  - Included comprehensive documentation explaining color usage rules
+  - Enforced `warmWindowGlow` usage restrictions (primary actions, lights on, positive feedback only)
 
-### 2. Time Window Service
-- ✅ `TimeWindowService` determines active window based on local time:
-  - Morning: 6:00 AM - 11:59 AM
-  - Midday: 12:00 PM - 4:59 PM
-  - Evening: 5:00 PM - 9:59 PM
-  - Bedtime: 10:00 PM - 5:59 AM
-- ✅ Helper methods for date key generation (yyyy-mm-dd format)
+### Theme Updates
+- **Updated `AppTheme`** (`lib/app/theme/app_theme.dart`)
+  - Replaced generic orange seed color with AppColors palette
+  - Configured light theme with warm, non-medical color scheme
+  - Configured dark theme using night/dim colors (nightSkyBlue, twilightLavender)
+  - Applied colors consistently to all Material 3 components:
+    - AppBar, Cards, Buttons, Input fields, Snackbars
+  - Removed deprecated ColorScheme properties (surfaceVariant, background)
+  - Fixed CardTheme to use CardThemeData
 
-### 3. Window Repository
-- ✅ `WindowRepository` with Firestore operations:
-  - `completeWindow()` - Marks window as `completedSelf` by user
-  - `verifyWindow()` - Marks window as `completedVerified` by caregiver
-  - `getDayStream()` - Reactive stream of day data
-  - `getDay()` - One-time fetch of day data
-- ✅ Uses Firestore transactions for atomic updates
-- ✅ Handles missing documents gracefully (defaults to pending state)
+### Screen Updates
+- **Caregiver Timeline Screen** (`lib/features/caregiver/screens/caregiver_timeline_screen.dart`)
+  - Replaced hardcoded Colors (orange, blue, green, red) with AppColors
+  - State colors now use: softCandleOrange (pending), twilightLavender (completed), warmWindowGlow (verified), softSageGreen (missed)
+  - No red/green medical colors per design requirements
 
-### 4. User House Screen
-- ✅ Placeholder house visual (card with "House: DIM/LIT")
-- ✅ Big button: "Turn the lights on"
-- ✅ On tap, marks active window as `completedSelf` and writes to Firestore
-- ✅ Updates UI reactively from Firestore stream
-- ✅ Shows house state based on active window completion status
-- ✅ Button disabled when lights are already on
-- ✅ TODO comments added for future animation and notification scheduling
+- **House View Widget** (`lib/features/user_house/widgets/house_view.dart`)
+  - Replaced Colors.black with AppColors.textPrimary for shadows
+  - Updated house state colors:
+    - DIM: nightSkyBlue tones (unresolved, waiting)
+    - WARM: warmWindowGlow (lights on, completed)
+    - NIGHT: twilightLavender tones (bedtime completed)
 
-### 5. Caregiver Timeline Screen
-- ✅ Lists all four windows (morning, midday, evening, bedtime) and their states
-- ✅ Shows window state with color indicators:
-  - Pending: Orange
-  - Completed: Blue
-  - Verified: Green
-  - Missed: Red
-- ✅ Caregiver can tap "Confirm" on any pending or completed window
-- ✅ Writes `completedVerified` to the window
-- ✅ Shows completion timestamp when available
-- ✅ TODO comments added for future timeline animation
+- **All Onboarding Screens**
+  - Already using theme colors, which now map to AppColors
+  - Error states use softSageGreen (no red) through theme
 
-### 6. Firestore Security Rules
-- ✅ Updated rules to allow read/write access to `days` subcollection
-- ✅ Only family members can read/write day documents
-- ✅ Validates data structure (windows map required)
+- **User House Screen**
+  - Already using theme colors correctly
+  - Primary button automatically uses warmWindowGlow through theme
 
-### 7. App Configuration
-- ✅ Added `WindowRepository` to app providers
-- ✅ Exported `Day` model in models.dart
+## Color Palette
 
-## Technical Details
+### Core Colors
+- `nightSkyBlue` (#3E4C7A) - Night/dim states
+- `twilightLavender` (#7A6FB0) - Night/dim accents
+- `warmWindowGlow` (#FFC857) - **PRIMARY ACTION ONLY** (buttons, lights on, positive feedback)
+- `softCandleOrange` (#F6A85F) - Warm accents
+- `warmOffWhite` (#FAF8F4) - Default backgrounds
+- `softSageGreen` (#8FB6A6) - Subtle accents, neutral states
+- `textPrimary` (#2E2E2E) - Main text
+- `textSecondary` (#6F6F6F) - Secondary text
 
-### Data Structure
-```
-families/{familyId}/days/{yyyy-mm-dd}
-  windows: {
-    morning: { state, completedAt, completedByUid },
-    midday: { state, completedAt, completedByUid },
-    evening: { state, completedAt, completedByUid },
-    bedtime: { state, completedAt, completedByUid }
-  }
-```
+### Design Rules Enforced
+- ✅ No red or green success/error colors
+- ✅ warmWindowGlow restricted to primary actions, lights on, positive feedback
+- ✅ Backgrounds default to warmOffWhite
+- ✅ Night/dim states use nightSkyBlue and lavender tones
+- ✅ All hardcoded colors replaced with AppColors references
 
-### Reactive Updates
-- Both screens use `StreamBuilder` to reactively update when Firestore data changes
-- Real-time synchronization across devices for the same family
-
-### Error Handling
-- Graceful handling of missing family IDs
-- Default pending state for missing day documents
-- User-friendly error messages via SnackBar
+## Testing
+- ✅ Flutter analyze passes with no errors
+- ✅ Debug build completes successfully
+- ✅ All screens use consistent color system
+- ✅ No deprecated API usage
 
 ## Files Changed
+- `lib/app/theme/app_colors.dart` (new)
+- `lib/app/theme/app_theme.dart` (updated)
+- `lib/features/caregiver/screens/caregiver_timeline_screen.dart` (updated)
+- `lib/features/user_house/widgets/house_view.dart` (updated)
 
-### New Files
-- `lib/domain/models/day.dart` - Day and WindowData models
-- `lib/services/time_window_service.dart` - Active window determination service
-
-### Modified Files
-- `lib/data/repositories/window_repository.dart` - Full Firestore implementation
-- `lib/features/user_house/screens/user_house_screen.dart` - Complete UI with stream
-- `lib/features/caregiver/screens/caregiver_timeline_screen.dart` - Complete UI with verification
-- `lib/app/app.dart` - Added WindowRepository provider
-- `lib/domain/models/models.dart` - Exported Day model
-- `firestore.rules` - Added days subcollection rules
-
-## Verification
-
-- ✅ All prompt requirements met exactly
-- ✅ Flutter analyze passes with no issues
-- ✅ Build succeeds (tested with `flutter build apk --debug`)
-- ✅ No linter errors
-- ✅ Firestore rules updated and validated
-- ✅ TODO comments added for future enhancements
-
-## Testing Notes
-
-- ✅ Code compiles successfully
-- ✅ No linter errors
-- ⚠️ Manual testing recommended for:
-  - Firestore read/write operations
-  - Real-time stream updates
-  - Time window transitions
-  - Cross-device synchronization
-  - Firestore security rules
-
-## Future Enhancements (TODOs Added)
-
-1. **Animations** (marked in code):
-   - House glow animation when lights turn on
-   - Window animations in caregiver timeline
-   - Smooth state transitions
-
-2. **Notification Scheduling** (marked in code):
-   - Gentle notifications that repeat until resolved
-   - Time-based notification triggers
-   - Notification scheduling service
-
-## Breaking Changes
-None - this is a new feature implementation that doesn't affect existing functionality.
+## Notes
+- All color usage is now centralized and consistent
+- Theme automatically applies colors to Material components
+- Future color additions should go through AppColors class
+- If a color seems missing, leave a TODO instead of adding new colors

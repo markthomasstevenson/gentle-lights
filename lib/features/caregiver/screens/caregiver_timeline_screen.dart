@@ -6,6 +6,8 @@ import '../../../../data/repositories/window_repository.dart';
 import '../../../../domain/models/time_window.dart';
 import '../../../../domain/models/window_state.dart';
 import '../../../../services/time_window_service.dart';
+import '../../../../services/caregiver_insights_service.dart';
+import '../../../../app/theme/app_colors.dart';
 
 class CaregiverTimelineScreen extends StatefulWidget {
   const CaregiverTimelineScreen({super.key});
@@ -106,16 +108,23 @@ class _CaregiverTimelineScreenState extends State<CaregiverTimelineScreen> {
     }
   }
 
+  /// Get color for window state indicator
+  /// 
+  /// Uses app color palette - no red/green medical colors
   Color _getStateColor(WindowState state) {
     switch (state) {
       case WindowState.pending:
-        return Colors.orange;
+        // Pending state uses soft candle orange (warm, waiting)
+        return AppColors.softCandleOrange;
       case WindowState.completedSelf:
-        return Colors.blue;
+        // Self-completed uses twilight lavender (neutral completion)
+        return AppColors.twilightLavender;
       case WindowState.completedVerified:
-        return Colors.green;
+        // Verified uses warm window glow (positive completion)
+        return AppColors.warmWindowGlow;
       case WindowState.missed:
-        return Colors.red;
+        // Missed uses soft sage green (neutral, not red)
+        return AppColors.softSageGreen;
     }
   }
 
@@ -223,6 +232,98 @@ class _CaregiverTimelineScreenState extends State<CaregiverTimelineScreen> {
                     );
                   },
                 ),
+              const SizedBox(height: 32),
+              // Insights section
+              FutureBuilder<CaregiverInsights>(
+                future: CaregiverInsightsService()
+                    .getInsights(familyId: _familyId!),
+                builder: (context, insightsSnapshot) {
+                  if (insightsSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const SizedBox.shrink();
+                  }
+
+                  if (insightsSnapshot.hasError || !insightsSnapshot.hasData) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final insights = insightsSnapshot.data!;
+                  
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Insights',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+                      // Missed windows count
+                      if (insights.missedCountLast7Days > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            '${insights.missedCountLast7Days} windows missed over the last week',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      // Most frequently missed window hint
+                      if (insights.mostFrequentlyMissedWindow == TimeWindow.evening)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Evenings are often delayed',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      // Today's missed windows
+                      Builder(
+                        builder: (context) {
+                          final missedToday = <TimeWindow>[];
+                          final todayWindows = TimeWindowService.getTodayWindows(
+                            windowStates: day.windows.map(
+                              (key, value) => MapEntry(key, value.state),
+                            ),
+                          );
+                          
+                          for (final windowInfo in todayWindows) {
+                            final windowData = day.windows[windowInfo.window];
+                            final state = windowData?.state ?? WindowState.pending;
+                            
+                            // Count as missed if explicitly marked or logically missed
+                            if (state == WindowState.missed || windowInfo.isMissed) {
+                              missedToday.add(windowInfo.window);
+                            }
+                          }
+                          
+                          if (missedToday.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              'Missed today: ${missedToday.map((w) => _getWindowDisplayName(w)).join(", ")}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                },
+              ),
             ],
           );
         },

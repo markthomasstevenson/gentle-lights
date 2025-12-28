@@ -44,6 +44,8 @@ class _UserHouseScreenState extends State<UserHouseScreen> {
       windowStates: day.windows.map((key, value) => MapEntry(key, value.state)),
     );
     
+    print('UserHouseScreen: Updating notifications - activeWindow=$activeWindow, windowState=$windowState, windowInfo.window=${windowInfo?.window}, windowInfo.isActive=${windowInfo?.isActive}');
+    
     NotificationService().updateWindowNotifications(
       window: activeWindow,
       state: windowState,

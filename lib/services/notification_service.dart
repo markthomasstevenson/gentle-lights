@@ -61,19 +61,46 @@ class NotificationService {
 
       if (initialized == true) {
         // Create Android notification channel for gentle notifications
-        // Using low importance to avoid alarm-like behavior
+        // Using default importance for visibility, but no sound/vibration for gentleness
         const androidChannel = AndroidNotificationChannel(
           'gentle_reminders',
           'Gentle Reminders',
           description: 'Calm reminders about the house',
-          importance: Importance.low, // Low importance = no sound, no vibration
+          importance: Importance.high, // High importance ensures visibility even when app is in foreground
           playSound: false,
           enableVibration: false,
         );
 
-        await _notifications
-            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-            ?.createNotificationChannel(androidChannel);
+        final androidPlugin = _notifications
+            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        
+        if (androidPlugin != null) {
+          // Delete existing channel if it exists (to recreate with new importance)
+          // This allows us to update channel settings without requiring app reinstall
+          try {
+            await androidPlugin.deleteNotificationChannel(androidChannel.id);
+            print('NotificationService: Deleted existing notification channel');
+          } catch (e) {
+            // Channel might not exist yet, that's fine
+            print('NotificationService: No existing channel to delete (this is OK)');
+          }
+          
+          // Create the notification channel with new settings
+          await androidPlugin.createNotificationChannel(androidChannel);
+          print('NotificationService: Notification channel created');
+          
+          // Request notification permission for Android 13+ (API 33+)
+          final permissionGranted = await androidPlugin.requestNotificationsPermission();
+          print('NotificationService: Android notification permission request result: $permissionGranted');
+          
+          // Also check current permission status
+          final notificationsEnabled = await androidPlugin.areNotificationsEnabled();
+          print('NotificationService: Android notifications currently enabled: $notificationsEnabled');
+          
+          if (notificationsEnabled != true) {
+            print('NotificationService: WARNING - Notifications are not enabled! User needs to grant permission in settings.');
+          }
+        }
 
         _initialized = true;
         return true;
@@ -149,47 +176,72 @@ class NotificationService {
     required Duration interval,
   }) async {
     final now = DateTime.now();
+    final currentActiveWindow = TimeWindowService.getActiveWindow();
     final windowInfo = TimeWindowService.getActiveWindowInfo();
     
     // Only schedule if this window is currently active
-    if (windowInfo?.window != window || 
-        windowInfo?.state == WindowState.completedSelf ||
-        windowInfo?.state == WindowState.completedVerified) {
+    // Check both the current active window and the windowInfo
+    final isActiveWindow = currentActiveWindow == window;
+    final windowMatches = windowInfo?.window == window;
+    final isCompleted = windowInfo?.state == WindowState.completedSelf ||
+                       windowInfo?.state == WindowState.completedVerified;
+    
+    print('NotificationService._scheduleRepeatingNotifications: window=$window, currentActiveWindow=$currentActiveWindow, isActiveWindow=$isActiveWindow, windowMatches=$windowMatches, isCompleted=$isCompleted');
+    
+    if (!isActiveWindow || isCompleted) {
+      print('NotificationService._scheduleRepeatingNotifications: Skipping - not active or completed');
       return;
     }
 
     // Schedule notifications for the next 24 hours (or until window grace period ends)
     final endTime = windowInfo?.gracePeriodEnd ?? now.add(const Duration(hours: 24));
     
-    // Show immediate notification first
-    await _notifications.zonedSchedule(
-      notificationId,
-      title,
-      body,
-      _convertToTZDateTime(now),
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          'gentle_reminders',
-          'Gentle Reminders',
-          channelDescription: 'Calm reminders about the house',
-          importance: Importance.low,
-          priority: Priority.low,
-          playSound: false,
-          enableVibration: false,
-          ongoing: false,
-          autoCancel: false,
-          styleInformation: BigTextStyleInformation(body),
+    // Show immediate notification first (use show() for instant display)
+    try {
+      print('NotificationService: Showing immediate notification for $window');
+      
+      // Check permissions before showing
+      final androidPlugin = _notifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        final enabled = await androidPlugin.areNotificationsEnabled();
+        print('NotificationService: Notifications enabled check before show: $enabled');
+        if (enabled != true) {
+          print('NotificationService: Notifications not enabled, requesting permission');
+          await androidPlugin.requestNotificationsPermission();
+        }
+      }
+      
+      await _notifications.show(
+        notificationId,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'gentle_reminders',
+            'Gentle Reminders',
+            channelDescription: 'Calm reminders about the house',
+            importance: Importance.high, // High importance to show even when app is in foreground
+            priority: Priority.high,
+            playSound: false,
+            enableVibration: false,
+            ongoing: false,
+            autoCancel: false,
+            styleInformation: BigTextStyleInformation(body),
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: false,
+          ),
         ),
-        iOS: const DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: false,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+      );
+      print('NotificationService: Immediate notification shown successfully');
+    } catch (e, stackTrace) {
+      print('NotificationService: Error showing notification: $e');
+      print('NotificationService: Stack trace: $stackTrace');
+      rethrow;
+    }
 
     // Then schedule repeating notifications
     var nextNotificationTime = now.add(interval);
@@ -205,8 +257,8 @@ class NotificationService {
             'gentle_reminders',
             'Gentle Reminders',
             channelDescription: 'Calm reminders about the house',
-            importance: Importance.low,
-            priority: Priority.low,
+            importance: Importance.high, // High importance to show even when app is in foreground
+            priority: Priority.high,
             playSound: false,
             enableVibration: false,
             ongoing: false,
@@ -314,6 +366,10 @@ class NotificationService {
     required WindowState state,
     WindowInfo? windowInfo,
   }) async {
+    if (!_initialized) {
+      await initialize();
+    }
+
     final isCompleted = state == WindowState.completedSelf || 
                        state == WindowState.completedVerified;
     
@@ -324,15 +380,30 @@ class NotificationService {
     }
 
     // Check if window is active and unresolved
+    // Use the provided windowInfo if available, otherwise get it fresh
     final info = windowInfo ?? TimeWindowService.getActiveWindowInfo();
-    final isActive = info?.window == window && info?.isActive == true;
+    
+    // Check if this window is the currently active window
+    final currentActiveWindow = TimeWindowService.getActiveWindow();
+    final isCurrentActiveWindow = currentActiveWindow == window;
+    
+    // Also check if the windowInfo says this window is active
+    final isActiveInInfo = info?.window == window && info?.isActive == true;
+    
+    // Window is active if it's the current active window OR if windowInfo says it's active
+    final isActive = isCurrentActiveWindow || isActiveInInfo;
     final isUnresolved = state == WindowState.pending || state == WindowState.missed;
+
+    // Debug: Print notification decision
+    print('NotificationService: window=$window, state=$state, currentActiveWindow=$currentActiveWindow, isCurrentActiveWindow=$isCurrentActiveWindow, isActiveInInfo=$isActiveInInfo, isActive=$isActive, isUnresolved=$isUnresolved, windowInfo.window=${info?.window}, windowInfo.isActive=${info?.isActive}');
 
     if (isActive && isUnresolved) {
       // Window is active and unresolved - schedule notifications
+      print('NotificationService: Scheduling notifications for $window');
       await scheduleWindowNotification(window: window);
     } else {
       // Window is not active or is resolved - cancel notifications
+      print('NotificationService: Cancelling notifications for $window (isActive=$isActive, isUnresolved=$isUnresolved)');
       await cancelWindowNotification(window);
     }
   }

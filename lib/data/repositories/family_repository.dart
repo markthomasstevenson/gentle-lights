@@ -53,6 +53,12 @@ class FamilyRepository {
             joinedAt: now,
           ).toMap());
 
+      // Store familyId in users collection for quick lookup
+      await _firestore.collection('users').doc(userId).set({
+        'familyId': familyRef.id,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
       return family;
     } catch (e) {
       // TODO: Handle error properly
@@ -98,6 +104,12 @@ class FamilyRepository {
               joinedAt: DateTime.now(),
             ).toMap(),
           );
+
+      // Store familyId in users collection for quick lookup
+      await _firestore.collection('users').doc(userId).set({
+        'familyId': familyRef.id,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       return Family.fromMap(familyDoc.data(), familyDoc.id);
     } catch (e) {
@@ -145,6 +157,12 @@ class FamilyRepository {
             ).toMap(),
           );
 
+      // Store familyId in users collection for quick lookup
+      await _firestore.collection('users').doc(userId).set({
+        'familyId': familyRef.id,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
       return Family.fromMap(familyDoc.data(), familyDoc.id);
     } catch (e) {
       // TODO: Handle error properly
@@ -155,14 +173,26 @@ class FamilyRepository {
   /// Get family ID for a user
   Future<String?> getFamilyId(String userId) async {
     try {
-      // Search all families for this user as a member
-      final familiesSnapshot = await _firestore.collection('families').get();
-
-      for (final familyDoc in familiesSnapshot.docs) {
-        final memberDoc =
-            await familyDoc.reference.collection('members').doc(userId).get();
-        if (memberDoc.exists) {
-          return familyDoc.id;
+      // Read from users collection for quick lookup
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      
+      if (userDoc.exists && userDoc.data() != null) {
+        final familyId = userDoc.data()!['familyId'] as String?;
+        if (familyId != null) {
+          // Verify the user is still a member of this family
+          final memberDoc = await _firestore
+              .collection('families')
+              .doc(familyId)
+              .collection('members')
+              .doc(userId)
+              .get();
+          
+          if (memberDoc.exists) {
+            return familyId;
+          } else {
+            // User document exists but they're not a member - clean up
+            await _firestore.collection('users').doc(userId).delete();
+          }
         }
       }
 
