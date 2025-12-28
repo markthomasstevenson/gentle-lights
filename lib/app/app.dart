@@ -4,6 +4,7 @@ import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 import '../auth/auth_service.dart';
 import '../data/repositories/family_repository.dart';
+import '../data/repositories/window_repository.dart';
 
 class GentleLightsApp extends StatelessWidget {
   const GentleLightsApp({super.key});
@@ -14,6 +15,7 @@ class GentleLightsApp extends StatelessWidget {
       providers: [
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<FamilyRepository>(create: (_) => FamilyRepository()),
+        Provider<WindowRepository>(create: (_) => WindowRepository()),
       ],
       child: MaterialApp.router(
         title: 'Gentle Lights',

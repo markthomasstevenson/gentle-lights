@@ -1,89 +1,130 @@
-# Complete Onboarding Flow UI Implementation
+# MVP Functional Loop Implementation
 
 ## Overview
-This PR completes the onboarding flow UI implementation to match all requirements from the prompt. All screens now have the correct text, buttons, copy functionality, and QR placeholders as specified.
+This PR implements the MVP functional loop for the Gentle Lights app, enabling users to mark time windows as completed and caregivers to verify completions. The implementation includes the data model, services, repositories, and UI screens with reactive Firestore streams.
 
 ## Features Implemented
 
-### 1. Metaphor Screen Enhancements
-- ✅ Added secondary button: "I am the family helper" that routes to caregiver join screen
-- ✅ All four required metaphor explanation text lines are present and correct:
-  - "This little house represents you."
-  - "When you take your medication, the house stays warm and bright."
-  - "If the lights are dim, it's just waiting for you."
-  - "When you've taken your medication, tap 'Turn the lights on.'"
+### 1. Data Model
+- ✅ Created `Day` model for Firestore structure: `families/{familyId}/days/{yyyy-mm-dd}`
+- ✅ Each day document contains windows (morning, midday, evening, bedtime)
+- ✅ Each window contains: `state`, `completedAt`, `completedByUid`
+- ✅ Window states: `pending`, `completedSelf`, `completedVerified`, `missed`
 
-### 2. Pairing Screen Updates
-- ✅ Changed title to exact wording: "Connect a family helper"
-- ✅ Added copy button for pairing code with clipboard functionality and snackbar confirmation
-- ✅ Added QR code display placeholder (200x200 container with icon)
-- ✅ Added "I am the family helper" button that routes to caregiver join screen
-- ✅ Changed primary button from "Continue" to "Done" as specified
+### 2. Time Window Service
+- ✅ `TimeWindowService` determines active window based on local time:
+  - Morning: 6:00 AM - 11:59 AM
+  - Midday: 12:00 PM - 4:59 PM
+  - Evening: 5:00 PM - 9:59 PM
+  - Bedtime: 10:00 PM - 5:59 AM
+- ✅ Helper methods for date key generation (yyyy-mm-dd format)
 
-### 3. Recovery Screen Enhancements
-- ✅ Added copy button for recovery code with clipboard functionality and snackbar confirmation
-- ✅ Maintains "Please keep this safe." text
-- ✅ "Done" button correctly routes to user house screen
+### 3. Window Repository
+- ✅ `WindowRepository` with Firestore operations:
+  - `completeWindow()` - Marks window as `completedSelf` by user
+  - `verifyWindow()` - Marks window as `completedVerified` by caregiver
+  - `getDayStream()` - Reactive stream of day data
+  - `getDay()` - One-time fetch of day data
+- ✅ Uses Firestore transactions for atomic updates
+- ✅ Handles missing documents gracefully (defaults to pending state)
 
-### 4. Caregiver Join Screen Updates
-- ✅ Added QR code scan placeholder (optional) with "or" separator
-- ✅ Maintains "I'm helping someone" title
-- ✅ Input field for pairing code
-- ✅ Join button correctly routes to caregiver timeline screen
+### 4. User House Screen
+- ✅ Placeholder house visual (card with "House: DIM/LIT")
+- ✅ Big button: "Turn the lights on"
+- ✅ On tap, marks active window as `completedSelf` and writes to Firestore
+- ✅ Updates UI reactively from Firestore stream
+- ✅ Shows house state based on active window completion status
+- ✅ Button disabled when lights are already on
+- ✅ TODO comments added for future animation and notification scheduling
 
-### 5. Code Quality Improvements
-- ✅ Fixed deprecation warnings: replaced `withOpacity()` with `withValues(alpha:)`
-- ✅ All code passes Flutter analysis with no issues
-- ✅ No linter errors
+### 5. Caregiver Timeline Screen
+- ✅ Lists all four windows (morning, midday, evening, bedtime) and their states
+- ✅ Shows window state with color indicators:
+  - Pending: Orange
+  - Completed: Blue
+  - Verified: Green
+  - Missed: Red
+- ✅ Caregiver can tap "Confirm" on any pending or completed window
+- ✅ Writes `completedVerified` to the window
+- ✅ Shows completion timestamp when available
+- ✅ TODO comments added for future timeline animation
+
+### 6. Firestore Security Rules
+- ✅ Updated rules to allow read/write access to `days` subcollection
+- ✅ Only family members can read/write day documents
+- ✅ Validates data structure (windows map required)
+
+### 7. App Configuration
+- ✅ Added `WindowRepository` to app providers
+- ✅ Exported `Day` model in models.dart
 
 ## Technical Details
 
-### Clipboard Functionality
-- Uses `Clipboard.setData()` from `package:flutter/services.dart`
-- Shows snackbar confirmation when codes are copied
-- Works for both pairing codes and recovery codes
+### Data Structure
+```
+families/{familyId}/days/{yyyy-mm-dd}
+  windows: {
+    morning: { state, completedAt, completedByUid },
+    midday: { state, completedAt, completedByUid },
+    evening: { state, completedAt, completedByUid },
+    bedtime: { state, completedAt, completedByUid }
+  }
+```
 
-### QR Code Placeholders
-- Minimal styling with icon and text
-- Clearly marked as placeholders for future implementation
-- Consistent design across pairing and caregiver join screens
+### Reactive Updates
+- Both screens use `StreamBuilder` to reactively update when Firestore data changes
+- Real-time synchronization across devices for the same family
 
-### Routing
-- User flow: Recovery screen → User House screen ✅
-- Caregiver flow: Join screen → Caregiver Timeline screen ✅
-- All navigation buttons correctly implemented
+### Error Handling
+- Graceful handling of missing family IDs
+- Default pending state for missing day documents
+- User-friendly error messages via SnackBar
 
 ## Files Changed
 
+### New Files
+- `lib/domain/models/day.dart` - Day and WindowData models
+- `lib/services/time_window_service.dart` - Active window determination service
+
 ### Modified Files
-- `lib/features/onboarding/screens/metaphor_screen.dart` - Added family helper button
-- `lib/features/onboarding/screens/pairing_screen.dart` - Added copy button, QR placeholder, updated title and buttons
-- `lib/features/onboarding/screens/recovery_screen.dart` - Added copy button
-- `lib/features/onboarding/screens/caregiver_join_screen.dart` - Added QR scan placeholder, fixed deprecations
+- `lib/data/repositories/window_repository.dart` - Full Firestore implementation
+- `lib/features/user_house/screens/user_house_screen.dart` - Complete UI with stream
+- `lib/features/caregiver/screens/caregiver_timeline_screen.dart` - Complete UI with verification
+- `lib/app/app.dart` - Added WindowRepository provider
+- `lib/domain/models/models.dart` - Exported Day model
+- `firestore.rules` - Added days subcollection rules
 
 ## Verification
 
 - ✅ All prompt requirements met exactly
 - ✅ Flutter analyze passes with no issues
-- ✅ No medical language used (as per requirements)
-- ✅ Minimal styling with placeholder visuals
-- ✅ All routing works correctly
+- ✅ Build succeeds (tested with `flutter build apk --debug`)
+- ✅ No linter errors
+- ✅ Firestore rules updated and validated
+- ✅ TODO comments added for future enhancements
 
 ## Testing Notes
 
 - ✅ Code compiles successfully
 - ✅ No linter errors
 - ⚠️ Manual testing recommended for:
-  - Copy button functionality
-  - Navigation flow between screens
-  - Visual appearance of QR placeholders
+  - Firestore read/write operations
+  - Real-time stream updates
+  - Time window transitions
+  - Cross-device synchronization
+  - Firestore security rules
 
-## Next Steps
+## Future Enhancements (TODOs Added)
 
-1. Test the complete onboarding flow manually
-2. Implement actual QR code generation/scanning (currently placeholders)
-3. Consider adding haptic feedback for copy actions
-4. Test on both iOS and Android devices
+1. **Animations** (marked in code):
+   - House glow animation when lights turn on
+   - Window animations in caregiver timeline
+   - Smooth state transitions
+
+2. **Notification Scheduling** (marked in code):
+   - Gentle notifications that repeat until resolved
+   - Time-based notification triggers
+   - Notification scheduling service
 
 ## Breaking Changes
-None - this is a UI enhancement that maintains existing functionality.
+None - this is a new feature implementation that doesn't affect existing functionality.

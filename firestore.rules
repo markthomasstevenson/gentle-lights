@@ -57,6 +57,18 @@ service cloud.firestore {
         // Allow delete only if user is deleting themselves (or admin - future enhancement)
         allow delete: if isAuthenticated() && memberId == getUserId();
       }
+
+      // Days subcollection
+      match /days/{dateKey} {
+        // Allow read if user is a member of the family
+        allow read: if isFamilyMember(familyId);
+        
+        // Allow create/update if user is a member of the family
+        // Windows structure: { windowName: { state, completedAt, completedByUid } }
+        allow write: if isFamilyMember(familyId) &&
+                        request.resource.data.keys().hasOnly(['windows']) &&
+                        request.resource.data.windows is map;
+      }
     }
 
     // Default deny all other access
