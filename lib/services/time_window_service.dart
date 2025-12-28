@@ -31,6 +31,11 @@ class WindowInfo {
 /// - Midday: 12:00 – 16:59
 /// - Evening: 17:00 – 21:59
 /// - Bedtime: 22:00 – 03:59 (next day)
+/// 
+/// TODO: Add per-user customization of window times
+///   - Store window times in Profile model (windowTimes field)
+///   - Update _getWindowForTime to use user-specific times
+///   - Allow caregivers to configure custom window times per user
 class TimeWindowService {
   /// Default grace period in minutes (30 minutes)
   static const int defaultGracePeriodMinutes = 30;
@@ -322,5 +327,53 @@ class TimeWindowService {
         orElse: () => windows.first,
       ),
     );
+  }
+
+  /// Check if a window is required based on the requiredWindows set
+  /// 
+  /// Returns true if the window is in the requiredWindows set
+  static bool isWindowRequired(TimeWindow window, Set<TimeWindow> requiredWindows) {
+    return requiredWindows.contains(window);
+  }
+
+  /// Get the next required window after the current time
+  /// 
+  /// Returns the next window from requiredWindows that will occur after [now],
+  /// or null if no more required windows are coming today.
+  /// 
+  /// [now] - Current time (optional, defaults to DateTime.now())
+  /// [requiredWindows] - Set of required windows to check
+  static TimeWindow? getNextRequiredWindow(
+    DateTime? now,
+    Set<TimeWindow> requiredWindows,
+  ) {
+    final currentTime = now ?? DateTime.now();
+    final activeWindow = getActiveWindow(currentTime);
+    
+    // Get all windows in chronological order
+    final allWindows = [
+      TimeWindow.morning,
+      TimeWindow.midday,
+      TimeWindow.evening,
+      TimeWindow.bedtime,
+    ];
+    
+    // Find the index of the active window
+    final activeIndex = allWindows.indexOf(activeWindow);
+    
+    // Check windows starting from the next one after active
+    for (int i = 1; i < allWindows.length; i++) {
+      final nextIndex = (activeIndex + i) % allWindows.length;
+      final nextWindow = allWindows[nextIndex];
+      
+      // If this is a required window, return it
+      if (requiredWindows.contains(nextWindow)) {
+        return nextWindow;
+      }
+    }
+    
+    // If we've checked all windows and none are required, return null
+    // (This shouldn't happen if at least one window is required, but handle gracefully)
+    return null;
   }
 }

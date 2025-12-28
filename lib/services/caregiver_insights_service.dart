@@ -18,6 +18,12 @@ class CaregiverInsights {
 }
 
 /// Service for computing caregiver insights and patterns
+/// 
+/// TODO: Add proof escalation based on missed required windows only
+///   - Only count missed windows that are in requiredWindows set
+///   - Escalate proof level (Level 0 → Level 1 → Level 2) when required windows are missed
+///   - Reset proof level when user successfully completes required windows consistently
+///   - Store proof level in Profile model
 class CaregiverInsightsService {
   final WindowRepository _windowRepository;
 

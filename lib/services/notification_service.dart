@@ -394,16 +394,18 @@ class NotificationService {
   /// 
   /// This is the main method to call when window state changes.
   /// It will:
-  /// - Schedule notifications if window is active and unresolved
-  /// - Cancel notifications if window is completed
+  /// - Schedule notifications if window is active, required, and unresolved
+  /// - Cancel notifications if window is completed or not required
   /// 
   /// [window] - The time window to check
   /// [state] - Current state of the window
   /// [windowInfo] - Optional WindowInfo for additional context
+  /// [requiredWindows] - Set of required windows. If provided, notifications only scheduled for required windows.
   Future<void> updateWindowNotifications({
     required TimeWindow window,
     required WindowState state,
     WindowInfo? windowInfo,
+    Set<TimeWindow>? requiredWindows,
   }) async {
     if (!_initialized) {
       await initialize();
@@ -413,13 +415,20 @@ class NotificationService {
                        state == WindowState.completedVerified;
     
     if (isCompleted) {
-      // Window is completed - cancel all notifications
+      // Window is completed - cancel all notifications immediately
       await cancelWindowNotification(window);
       return;
     }
 
     // Not required windows should never trigger notifications
     if (state == WindowState.notRequired) {
+      await cancelWindowNotification(window);
+      return;
+    }
+
+    // Check if window is required (if requiredWindows is provided)
+    if (requiredWindows != null && !TimeWindowService.isWindowRequired(window, requiredWindows)) {
+      // Window is not required - cancel notifications
       await cancelWindowNotification(window);
       return;
     }
@@ -440,10 +449,11 @@ class NotificationService {
     final isUnresolved = state == WindowState.pending || state == WindowState.missed;
 
     // Debug: Print notification decision
-    print('NotificationService: window=$window, state=$state, currentActiveWindow=$currentActiveWindow, isCurrentActiveWindow=$isCurrentActiveWindow, isActiveInInfo=$isActiveInInfo, isActive=$isActive, isUnresolved=$isUnresolved, windowInfo.window=${info?.window}, windowInfo.isActive=${info?.isActive}');
+    print('NotificationService: window=$window, state=$state, currentActiveWindow=$currentActiveWindow, isCurrentActiveWindow=$isCurrentActiveWindow, isActiveInInfo=$isActiveInInfo, isActive=$isActive, isUnresolved=$isUnresolved, windowInfo.window=${info?.window}, windowInfo.isActive=${info?.isActive}, isRequired=${requiredWindows?.contains(window) ?? true}');
 
+    // Only schedule notifications for required windows that are active and unresolved
     if (isActive && isUnresolved) {
-      // Window is active and unresolved - schedule notifications
+      // Window is active, required, and unresolved - schedule notifications
       print('NotificationService: Scheduling notifications for $window');
       await scheduleWindowNotification(window: window);
     } else {

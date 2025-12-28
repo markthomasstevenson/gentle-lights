@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 import '../../../../auth/auth_service.dart';
 import '../../../../data/repositories/family_repository.dart';
 import '../../../../data/repositories/window_repository.dart';
+import '../../../../data/repositories/profile_repository.dart';
 import '../../../../domain/models/window_state.dart';
 import '../../../../domain/models/day.dart';
 import '../../../../domain/models/time_window.dart';
+import '../../../../domain/models/profile.dart';
 import '../../../../services/time_window_service.dart';
 import '../../../../services/notification_service.dart';
 import '../widgets/house_view.dart';
@@ -29,7 +31,7 @@ class _UserHouseScreenState extends State<UserHouseScreen> {
     _loadFamilyId();
   }
 
-  void _updateNotifications(Day? day, TimeWindow activeWindow) {
+  void _updateNotifications(Day? day, TimeWindow activeWindow, Set<TimeWindow>? requiredWindows) {
     if (day == null) return;
     
     // Only update if day or active window changed
@@ -50,6 +52,7 @@ class _UserHouseScreenState extends State<UserHouseScreen> {
       window: activeWindow,
       state: windowState,
       windowInfo: windowInfo,
+      requiredWindows: requiredWindows,
     );
   }
 
@@ -129,6 +132,15 @@ class _UserHouseScreenState extends State<UserHouseScreen> {
       );
     }
 
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Your House')),
+        body: const Center(child: Text('Please sign in.')),
+      );
+    }
+
     final activeWindow = TimeWindowService.getActiveWindow();
     final todayDateKey = TimeWindowService.getTodayDateKey();
 
@@ -136,72 +148,132 @@ class _UserHouseScreenState extends State<UserHouseScreen> {
       appBar: AppBar(
         title: const Text('Your House'),
       ),
-      body: StreamBuilder(
-        stream: Provider.of<WindowRepository>(context, listen: false)
-            .getDayStream(_familyId!, todayDateKey),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: StreamBuilder<Profile?>(
+        stream: Provider.of<ProfileRepository>(context, listen: false)
+            .getProfileStream(familyId: _familyId!, uid: user.uid),
+        builder: (context, profileSnapshot) {
+          // Use default required windows if profile not loaded yet
+          final requiredWindows = profileSnapshot.data?.requiredWindows ?? 
+                                  Profile.defaultRequiredWindows;
 
-          final day = snapshot.data;
-          if (day == null) {
-            return const Center(child: Text('Unable to load day data.'));
-          }
+          return StreamBuilder<Day?>(
+            stream: Provider.of<WindowRepository>(context, listen: false)
+                .getDayStream(_familyId!, todayDateKey, requiredWindows: requiredWindows),
+            builder: (context, daySnapshot) {
+              if (daySnapshot.connectionState == ConnectionState.waiting ||
+                  profileSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final activeWindowData = day.windows[activeWindow];
-          final windowState = activeWindowData?.state;
+              final day = daySnapshot.data;
+              if (day == null) {
+                return const Center(child: Text('Unable to load day data.'));
+              }
 
-          // Determine house state from current window and completion status
-          final houseState = determineHouseState(
-            currentWindow: activeWindow,
-            windowState: windowState,
-          );
+              final activeWindowData = day.windows[activeWindow];
+              final windowState = activeWindowData?.state;
 
-          final isCompleted = windowState == WindowState.completedSelf ||
-              windowState == WindowState.completedVerified;
+              // Check if the active window is required
+              final isActiveWindowRequired = TimeWindowService.isWindowRequired(
+                activeWindow,
+                requiredWindows,
+              );
 
-          // Update notifications based on window state
-          // This ensures notifications are scheduled when windows become active
-          // and cancelled when they're completed
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _updateNotifications(day, activeWindow);
-          });
+              // Determine house state from current window and completion status
+              final houseState = determineHouseState(
+                currentWindow: activeWindow,
+                windowState: windowState,
+              );
 
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Card(
-                    elevation: 4,
-                    child: HouseView(state: houseState),
-                  ),
-                  const SizedBox(height: 48),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 64,
-                    child: ElevatedButton(
-                      onPressed: isCompleted ? null : _handleTurnLightsOn,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                        textStyle: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+              final isCompleted = windowState == WindowState.completedSelf ||
+                  windowState == WindowState.completedVerified;
+
+              // Get next required window for display
+              final nextRequiredWindow = TimeWindowService.getNextRequiredWindow(
+                null,
+                requiredWindows,
+              );
+
+              // Update notifications based on window state
+              // This ensures notifications are scheduled when windows become active
+              // and cancelled when they're completed
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _updateNotifications(day, activeWindow, requiredWindows);
+              });
+
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Card(
+                        elevation: 4,
+                        child: HouseView(state: houseState),
                       ),
-                      child: const Text('Turn the lights on'),
-                    ),
+                      const SizedBox(height: 48),
+                      // Show CTA button only if active window is required and not completed
+                      if (isActiveWindowRequired && !isCompleted)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 64,
+                          child: ElevatedButton(
+                            onPressed: _handleTurnLightsOn,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                              textStyle: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            child: const Text('Turn the lights on'),
+                          ),
+                        ),
+                      // Show calm state if active window is not required
+                      if (!isActiveWindowRequired)
+                        Column(
+                          children: [
+                            Text(
+                              'All good for now',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            if (nextRequiredWindow != null) ...[
+                              const SizedBox(height: 16),
+                              Text(
+                                'Next: ${_getWindowDisplayName(nextRequiredWindow)}',
+                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
       ),
     );
+  }
+
+  String _getWindowDisplayName(TimeWindow window) {
+    switch (window) {
+      case TimeWindow.morning:
+        return 'Morning';
+      case TimeWindow.midday:
+        return 'Midday';
+      case TimeWindow.evening:
+        return 'Evening';
+      case TimeWindow.bedtime:
+        return 'Bedtime';
+    }
   }
 }
 
