@@ -4,7 +4,10 @@ import '../../../../auth/auth_service.dart';
 import '../../../../data/repositories/family_repository.dart';
 import '../../../../data/repositories/window_repository.dart';
 import '../../../../domain/models/window_state.dart';
+import '../../../../domain/models/day.dart';
+import '../../../../domain/models/time_window.dart';
 import '../../../../services/time_window_service.dart';
+import '../../../../services/notification_service.dart';
 
 class UserHouseScreen extends StatefulWidget {
   const UserHouseScreen({super.key});
@@ -16,11 +19,35 @@ class UserHouseScreen extends StatefulWidget {
 class _UserHouseScreenState extends State<UserHouseScreen> {
   String? _familyId;
   bool _isLoading = true;
+  Day? _lastDay;
+  TimeWindow? _lastActiveWindow;
 
   @override
   void initState() {
     super.initState();
     _loadFamilyId();
+  }
+
+  void _updateNotifications(Day? day, TimeWindow activeWindow) {
+    if (day == null) return;
+    
+    // Only update if day or active window changed
+    if (_lastDay == day && _lastActiveWindow == activeWindow) return;
+    
+    _lastDay = day;
+    _lastActiveWindow = activeWindow;
+
+    final activeWindowData = day.windows[activeWindow];
+    final windowState = activeWindowData?.state ?? WindowState.pending;
+    final windowInfo = TimeWindowService.getActiveWindowInfo(
+      windowStates: day.windows.map((key, value) => MapEntry(key, value.state)),
+    );
+    
+    NotificationService().updateWindowNotifications(
+      window: activeWindow,
+      state: windowState,
+      windowInfo: windowInfo,
+    );
   }
 
   Future<void> _loadFamilyId() async {
@@ -122,6 +149,13 @@ class _UserHouseScreenState extends State<UserHouseScreen> {
           final activeWindowData = day.windows[activeWindow];
           final isLit = activeWindowData?.state == WindowState.completedSelf ||
               activeWindowData?.state == WindowState.completedVerified;
+
+          // Update notifications based on window state
+          // This ensures notifications are scheduled when windows become active
+          // and cancelled when they're completed
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _updateNotifications(day, activeWindow);
+          });
 
           return Center(
             child: Padding(

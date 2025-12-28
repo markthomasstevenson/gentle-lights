@@ -3,6 +3,7 @@ import '../../domain/models/time_window.dart';
 import '../../domain/models/window_state.dart';
 import '../../domain/models/day.dart';
 import '../../services/time_window_service.dart';
+import '../../services/notification_service.dart';
 
 class WindowRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -62,6 +63,12 @@ class WindowRepository {
         return true;
       });
 
+      // Cancel notifications for this window since it's now completed
+      await NotificationService().updateWindowNotifications(
+        window: window,
+        state: WindowState.completedSelf,
+      );
+
       return true;
     } catch (e) {
       // TODO: Handle error properly
@@ -111,6 +118,12 @@ class WindowRepository {
 
         return true;
       });
+
+      // Cancel notifications for this window since it's now verified
+      await NotificationService().updateWindowNotifications(
+        window: window,
+        state: WindowState.completedVerified,
+      );
 
       return true;
     } catch (e) {
